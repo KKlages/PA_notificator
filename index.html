@@ -1,87 +1,27 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PA Status</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Arial', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        .container {
-            text-align: center;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 60px;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            min-width: 400px;
-        }
-        .status-box {
-            margin: 20px 0;
-            padding: 30px;
-            border-radius: 15px;
-            transition: all 0.3s ease;
-        }
-        .available {
-            background: #10b981;
-            color: white;
-        }
-        .unavailable {
-            background: #ef4444;
-            color: white;
-        }
-        .status-box h2 {
-            margin: 0 0 10px 0;
-            font-size: 24px;
-        }
-        .status-box .icon {
-            font-size: 48px;
-            margin-bottom: 10px;
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 40px;
-        }
-        .last-update {
-            font-size: 12px;
-            opacity: 0.8;
-            margin-top: 10px;
-        }
-        .error {
-            background: #f59e0b;
-            color: white;
-            padding: 20px;
-            border-radius: 10px;
-        }
-    </style>
-</head>
 <body>
     <div class="container">
         <h1>🎮 Planetary Annihilation Status</h1>
+        
         <div id="player1-status" class="status-box unavailable">
             <div class="icon">🔴</div>
             <h2>Player 1</h2>
             <p>Not Available</p>
             <div class="last-update"></div>
+            <button onclick="toggleStatus('player1')">Toggle My Status</button>
         </div>
+        
         <div id="player2-status" class="status-box unavailable">
             <div class="icon">🔴</div>
             <h2>Player 2</h2>
             <p>Not Available</p>
             <div class="last-update"></div>
+            <button onclick="toggleStatus('player2')">Toggle My Status</button>
         </div>
     </div>
 
     <script>
         const API_URL = 'https://your-backend-url.com'; // Replace with your actual backend URL
-        
+
         function updateStatus(userId, data) {
             const statusBox = document.getElementById(`${userId}-status`);
             const icon = statusBox.querySelector('.icon');
@@ -108,11 +48,26 @@
             try {
                 const response = await fetch(`${API_URL}/all_status`);
                 const data = await response.json();
-                
                 updateStatus('player1', data.player1);
                 updateStatus('player2', data.player2);
             } catch (error) {
                 console.error('Error fetching status:', error);
+            }
+        }
+
+        async function toggleStatus(userId) {
+            try {
+                const response = await fetch(`${API_URL}/toggle/${userId}`, {
+                    method: 'POST'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    updateStatus(userId, data);
+                } else {
+                    console.error('Error toggling status');
+                }
+            } catch (error) {
+                console.error('Error toggling status:', error);
             }
         }
         
@@ -121,4 +76,3 @@
         fetchStatus(); // Initial fetch
     </script>
 </body>
-</html>

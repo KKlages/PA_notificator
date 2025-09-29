@@ -4,7 +4,7 @@ import sys
 import time
 
 # CONFIGURATION - CHANGE THESE
-API_URL = "https://your-backend-url.com"  # Your deployed backend URL
+API_URL = "https://pa-notificator.onrender.com"  # Your deployed backend URL
 USER_ID = "player1"  # Change to "player2" for the other person
 HOTKEY = "ctrl+shift+p"  # Change to whatever hotkey you want
 
