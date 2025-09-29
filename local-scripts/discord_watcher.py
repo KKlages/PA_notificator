@@ -1,103 +1,117 @@
 import requests
 import time
 import subprocess
-import platform
 import sys
-from plyer import notification
-import winsound  # For Windows sound
+from win10toast import ToastNotifier
+import winsound
+import atexit
+import signal
 
-# CONFIGURATION - CHANGE THESE
+# CONFIGURATION
 API_URL = "https://pa-notificator.onrender.com"
+MY_USER_ID = "player1"  # YOUR user ID
 FRIEND_USER_ID = "player2"
 DISCORD_USER_ID = "455124990166302750"
 CHECK_INTERVAL = 3
 
-previous_status = False
+toast = ToastNotifier()
+previous_both_available = False
+
+def set_my_status_offline():
+    """Set my own status to offline when script exits"""
+    try:
+        response = requests.get(f"{API_URL}/status/{MY_USER_ID}", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if data["available"]:  # Only toggle if currently available
+                requests.post(f"{API_URL}/toggle/{MY_USER_ID}", timeout=5)
+    except:
+        pass
+
+# Register cleanup
+atexit.register(set_my_status_offline)
+
+def signal_handler(sig, frame):
+    set_my_status_offline()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
 
 def play_alert_sound():
-    """Play an alert sound"""
-    system = platform.system()
-    
     try:
-        if system == "Windows":
-            # Play Windows exclamation sound 5 times
-            for _ in range(5):
-                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
-                time.sleep(0.3)
-        elif system == "Darwin":  # macOS
-            # Play system alert sound
-            subprocess.run(['afplay', '/System/Library/Sounds/Glass.aiff'])
-        elif system == "Linux":
-            # Play system beep
-            subprocess.run(['paplay', '/usr/share/sounds/freedesktop/stereo/message.oga'])
-    except Exception as e:
-        print(f"⚠️ Could not play sound: {e}")
+        for i in range(10):
+            winsound.Beep(1000, 200)
+            time.sleep(0.1)
+            winsound.Beep(1500, 200)
+            time.sleep(0.1)
+    except:
+        pass
 
-def notify_friend_available():
-    """Show persistent desktop notification with sound"""
-    
-    # Play sound first
-    print("🔊 Playing alert sound...")
+def notify_both_available():
+    print("🚀 BOTH PLAYERS AVAILABLE!")
     play_alert_sound()
     
-    # Show desktop notification (stays until dismissed)
-    notification.notify(
-        title='🎮 FRIEND AVAILABLE FOR PA!',
-        message=f'{FRIEND_USER_ID} is ready to play!\n\nClick to dismiss, then call them on Discord.',
-        app_name='PA Notifier',
-        timeout=0  # 0 = stays on screen until manually dismissed
-    )
-    
-    # Open Discord DM
-    system = platform.system()
-    discord_url = f"discord://-/channels/@me/{DISCORD_USER_ID}"
-    
     try:
-        if system == "Windows":
-            subprocess.run(f'start {discord_url}', shell=True)
-        elif system == "Darwin":
-            subprocess.run(['open', discord_url])
-        elif system == "Linux":
-            subprocess.run(['xdg-open', discord_url])
-        
-        print(f"✅ Opened Discord DM with user {DISCORD_USER_ID}")
-        print("💡 Notification will stay on screen - dismiss it when ready!")
-    except Exception as e:
-        print(f"❌ Error opening Discord: {e}")
+        toast.show_toast(
+            "🎮 BOTH READY FOR PA!",
+            f"You AND {FRIEND_USER_ID} are both available!\n\nCall them on Discord NOW!",
+            duration=20,
+            threaded=True
+        )
+    except:
+        pass
+    
+    discord_url = f"discord://-/channels/@me/{DISCORD_USER_ID}"
+    try:
+        subprocess.run(f'start {discord_url}', shell=True)
+    except:
+        pass
 
 def main():
-    global previous_status
-    print("🎮 PA Discord Auto-Notifier Active!")
-    print(f"Watching: {FRIEND_USER_ID}")
-    print(f"Discord user: {DISCORD_USER_ID}")
-    print(f"Checking every {CHECK_INTERVAL} seconds...")
-    print("Press Ctrl+C to exit\n")
+    global previous_both_available
+    
+    print(f"🎮 PA Discord Auto-Notifier Active!")
+    print(f"Watching for BOTH players to be available")
+    print(f"You: {MY_USER_ID} | Friend: {FRIEND_USER_ID}\n")
+    
+    # Set my own status to offline on startup
+    set_my_status_offline()
+    
+    # Get initial status
+    try:
+        response = requests.get(f"{API_URL}/all_status", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            my_status = data.get(MY_USER_ID, {}).get("available", False)
+            friend_status = data.get(FRIEND_USER_ID, {}).get("available", False)
+            previous_both_available = my_status and friend_status
+            
+            print(f"Initial status:")
+            print(f"  You ({MY_USER_ID}): {'✅ Available' if my_status else '❌ Not Available'}")
+            print(f"  Friend ({FRIEND_USER_ID}): {'✅ Available' if friend_status else '❌ Not Available'}")
+            print()
+    except:
+        pass
     
     while True:
         try:
-            response = requests.get(f"{API_URL}/status/{FRIEND_USER_ID}", timeout=5)
+            response = requests.get(f"{API_URL}/all_status", timeout=5)
             
             if response.status_code == 200:
                 data = response.json()
-                current_status = data.get("available", False)
+                my_status = data.get(MY_USER_ID, {}).get("available", False)
+                friend_status = data.get(FRIEND_USER_ID, {}).get("available", False)
+                current_both_available = my_status and friend_status
                 
-                # Detect transition from unavailable to available
-                if current_status and not previous_status:
-                    print(f"\n🚀 {FRIEND_USER_ID} is now AVAILABLE!")
-                    print("📞 Sending notification and opening Discord...")
-                    notify_friend_available()
-                    print()
-                elif not current_status and previous_status:
-                    print(f"❌ {FRIEND_USER_ID} is now unavailable\n")
+                # Trigger notification when BOTH become available (transition to both green)
+                if current_both_available and not previous_both_available:
+                    notify_both_available()
+                elif not current_both_available and previous_both_available:
+                    print("❌ One or both players no longer available\n")
                 
-                previous_status = current_status
-            else:
-                print(f"⚠️ API error: {response.status_code}")
-            
-        except requests.exceptions.RequestException as e:
-            print(f"⚠️ Connection error: {e}")
-        except Exception as e:
-            print(f"⚠️ Unexpected error: {e}")
+                previous_both_available = current_both_available
+        except:
+            pass
         
         time.sleep(CHECK_INTERVAL)
 
@@ -105,5 +119,5 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\nExiting Discord notifier...")
+        set_my_status_offline()
         sys.exit(0)
